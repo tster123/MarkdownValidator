@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Security.Policy;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using SystemWrapper.IO;
@@ -45,6 +47,12 @@ namespace MarkValLib.Rules
                 return new MarkdownProblem(this, link, file, $"Empty link on [{link.Label}]");
             }
 
+            if (url.StartsWith("#"))
+            {
+                // TODO: support anchors in other pages
+                return CheckAnchor(url, link, document, file, repo);
+            }
+
             if (Uri.TryCreate(url, UriKind.Absolute, out Uri uri))
             {
                 if (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
@@ -59,6 +67,36 @@ namespace MarkValLib.Rules
             }
 
             return CheckLocalLink(url, link, file, repo);
+        }
+
+        private MarkdownProblem CheckAnchor(string url, LinkInline link, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        {
+            string anchor = url.Substring(1);
+            anchor = WebUtility.UrlDecode(anchor);
+            anchor = anchor.Replace("-", " ");
+            //TODO: do I need to do a tree search?
+            foreach (Block block in document)
+            {
+                if (block is HeadingBlock heading)
+                {
+                    string headingText = "";
+                    if (heading.Inline == null) continue;
+                    foreach (Inline i in heading.Inline)
+                    {
+                        if (i is LiteralInline li)
+                        {
+                            headingText += i.ToString();
+                        }
+                    }
+                    headingText = headingText.Replace("-", " ");
+                    if (headingText.ToLowerInvariant() == anchor.ToLowerInvariant())
+                    {
+                        return null;
+                    }
+                }
+            }
+
+            return new MarkdownProblem(this, link, file, $"Cannot find anchor in document [{url}]");
         }
 
         private MarkdownProblem CheckHttpLink(Uri url, LinkInline link, IFileInfoWrap file, IDirectoryInfoWrap repo)

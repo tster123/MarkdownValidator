@@ -28,6 +28,20 @@ namespace MarkValLibTest
         }
 
         [TestMethod]
+        public void TestAnchors()
+        {
+            IDirectoryInfoWrap directory = new DirectoryInfoWrap(repo);
+            IFileInfoWrap file = directory.GetFiles("PrepSP.md", SearchOption.AllDirectories).Single();
+            LinkExistsRule rule = new LinkExistsRule();
+            Validator v = new Validator(directory, new[] { rule });
+            var problems = v.CheckDocument(file);
+            foreach (var p in problems)
+            {
+                Console.WriteLine(p);
+            }
+        }
+
+        [TestMethod]
         public void GetAllBroken()
         {
             IDirectoryInfoWrap directory = new DirectoryInfoWrap(repo);
