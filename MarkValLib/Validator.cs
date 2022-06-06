@@ -1,4 +1,4 @@
-﻿using System.Collections;
+﻿using System;
 using System.Collections.Generic;
 using Markdig.Parsers;
 using Markdig.Syntax;
@@ -7,6 +7,14 @@ using SystemWrapper.IO;
 
 namespace MarkValLib
 {
+    public class IOErrorRule : IRule
+    {
+        public IEnumerable<MarkdownProblem> GetProblems(MarkdownObject obj, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        {
+            return Array.Empty<MarkdownProblem>();
+        }
+    }
+
     public class Validator
     {
         private readonly IDirectoryInfoWrap Repository;
@@ -21,10 +29,26 @@ namespace MarkValLib
         public IEnumerable<MarkdownProblem> CheckDocument(IFileInfoWrap file)
         {
             string text;
-            var stream = file.OpenText();
-            using (stream.StreamReaderInstance)
+
+            MarkdownProblem toRet = null;
+            try
             {
-                text = stream.ReadToEnd();
+                var stream = file.OpenText();
+                using (stream.StreamReaderInstance)
+                {
+                    text = stream.ReadToEnd();
+                }
+            }
+            catch (Exception e)
+            {
+                text = "foo";
+                toRet = new MarkdownProblem(new IOErrorRule(), null, file, "Unable to open file: " + e.Message);
+            }
+
+            if (toRet != null)
+            {
+                yield return toRet;
+                yield break;
             }
 
             MarkdownDocument document = MarkdownParser.Parse(text);

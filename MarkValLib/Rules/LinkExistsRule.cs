@@ -1,12 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Cache;
-using System.Text;
-using System.Threading.Tasks;
+using System.Net;
+using System.Net.Http;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
-using MarkValLib;
 using SystemWrapper.IO;
 
 namespace MarkValLib.Rules
@@ -42,6 +40,48 @@ namespace MarkValLib.Rules
 
         private MarkdownProblem GetLinkProblem(string url, LinkInline link, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
         {
+            if (url == "")
+            {
+                return new MarkdownProblem(this, link, file, $"Empty link on [{link.Label}]");
+            }
+
+            if (Uri.TryCreate(url, UriKind.Absolute, out Uri uri))
+            {
+                if (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                {
+                    return CheckHttpLink(uri, link, file, repo);
+                }
+
+                if (uri.Scheme == Uri.UriSchemeMailto)
+                {
+                    return null;
+                }
+            }
+
+            return CheckLocalLink(url, link, file, repo);
+        }
+
+        private MarkdownProblem CheckHttpLink(Uri url, LinkInline link, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        {
+            HttpClient client = new HttpClient();
+            client.Timeout = TimeSpan.FromSeconds(5);
+            try
+            {
+                HttpResponseMessage response = client.GetAsync(url).Result;
+                if (response.StatusCode == HttpStatusCode.NotFound)
+                {
+                    return new MarkdownProblem(this, link, file, $"Got 404 from [{url}]");
+                }
+            }
+            catch (Exception e)
+            {
+                return new MarkdownProblem(this, link, file, $"Error getting [{url}]: {e.Message}");
+            }
+            return null;
+        }
+
+        private MarkdownProblem CheckLocalLink(string url, LinkInline link, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        {
             bool absolute = url[0] == '/';
             if (absolute) url = url.Substring(1);
             IDirectoryInfoWrap workDir = absolute ? repo : file.Directory;
@@ -58,14 +98,16 @@ namespace MarkValLib.Rules
                 {
                     if (workDir.FullName.ToLowerInvariant() == repo.FullName.ToLowerInvariant())
                     {
-                        return new MarkdownProblem(this, link, file, "link went above markdown base directory");
+                        return new MarkdownProblem(this, link, file,
+                            $"link for [{link.Label}] went above markdown base directory");
                     }
 
                     workDir = workDir.Parent;
                 }
                 else
                 {
-                    var candidate = workDir.GetDirectories().SingleOrDefault(d => d.Name.ToLowerInvariant() == part.ToLowerInvariant());
+                    var candidate = workDir.GetDirectories()
+                        .SingleOrDefault(d => d.Name.ToLowerInvariant() == part.ToLowerInvariant());
                     if (candidate == null)
                     {
                         return new MarkdownProblem(this, link, file,
@@ -80,7 +122,8 @@ namespace MarkValLib.Rules
             }
 
             string filename = parts.Last();
-            var candidateFile = workDir.GetFiles().SingleOrDefault(f => f.Name.ToLowerInvariant() == filename.ToLowerInvariant());
+            var candidateFile =
+                workDir.GetFiles().SingleOrDefault(f => f.Name.ToLowerInvariant() == filename.ToLowerInvariant());
             if (candidateFile != null) return null;
 
             var candidateDir = workDir.GetDirectories()

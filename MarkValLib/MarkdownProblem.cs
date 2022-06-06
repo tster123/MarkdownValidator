@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Markdig.Syntax;
+﻿using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using SystemWrapper.IO;
 
@@ -26,7 +21,7 @@ namespace MarkValLib
 
         public override string ToString()
         {
-            return $"{nameof(Rule)}: {File.FullName} @ Line {Line} : {Description}";
+            return $"{Rule.GetType().Name}: {File.FullName} @ Line {Line} : {Description}";
         }
 
         private int Line

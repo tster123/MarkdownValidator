@@ -11,7 +11,7 @@ namespace MarkValLibTest
     [TestClass]
     public class LinkExistsRuleTest
     {
-        private string repo = @"C:\Repos\*.wiki";
+        private string repo = @"D:\Repos\wiki";
 
         [TestMethod]
         public void TestBasicLinks()
