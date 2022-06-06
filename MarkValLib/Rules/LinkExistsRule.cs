@@ -128,6 +128,7 @@ namespace MarkValLib.Rules
             for (int i = 0; i < parts.Length - 1; i++)
             {
                 string part = parts[i];
+                part = WebUtility.UrlDecode(part);
                 if (part == ".")
                 {
                     // no-op on working dir
@@ -145,7 +146,7 @@ namespace MarkValLib.Rules
                 else
                 {
                     var candidate = workDir.GetDirectories()
-                        .SingleOrDefault(d => d.Name.ToLowerInvariant() == part.ToLowerInvariant());
+                        .SingleOrDefault(d => WebUtility.UrlDecode(d.Name).ToLowerInvariant() == part.ToLowerInvariant());
                     if (candidate == null)
                     {
                         return new MarkdownProblem(this, link, file,
@@ -159,9 +160,10 @@ namespace MarkValLib.Rules
                 workDirPath += part;
             }
 
-            string filename = parts.Last();
+            string filename = WebUtility.UrlDecode(parts.Last());
             var candidateFile =
-                workDir.GetFiles().SingleOrDefault(f => f.Name.ToLowerInvariant() == filename.ToLowerInvariant());
+                workDir.GetFiles().SingleOrDefault(f =>
+                    WebUtility.UrlDecode(f.Name).ToLowerInvariant() == filename.ToLowerInvariant());
             if (candidateFile != null) return null;
 
             var candidateDir = workDir.GetDirectories()

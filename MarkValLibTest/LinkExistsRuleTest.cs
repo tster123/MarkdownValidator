@@ -42,6 +42,34 @@ namespace MarkValLibTest
         }
 
         [TestMethod]
+        public void TestDecoding()
+        {
+            IDirectoryInfoWrap directory = new DirectoryInfoWrap(repo);
+            IFileInfoWrap file = directory.GetFiles("Upgrading-.NET-Runtime-on-SPO-Servers.md", SearchOption.AllDirectories).Single();
+            LinkExistsRule rule = new LinkExistsRule();
+            Validator v = new Validator(directory, new[] { rule });
+            var problems = v.CheckDocument(file);
+            foreach (var p in problems)
+            {
+                Console.WriteLine(p);
+            }
+        }
+
+        [TestMethod]
+        public void TestFolderLink()
+        {
+            IDirectoryInfoWrap directory = new DirectoryInfoWrap(repo);
+            IFileInfoWrap file = directory.GetFiles("Onboarding.md", SearchOption.TopDirectoryOnly).Single();
+            LinkExistsRule rule = new LinkExistsRule();
+            Validator v = new Validator(directory, new[] { rule });
+            var problems = v.CheckDocument(file);
+            foreach (var p in problems)
+            {
+                Console.WriteLine(p);
+            }
+        }
+
+        [TestMethod]
         public void GetAllBroken()
         {
             IDirectoryInfoWrap directory = new DirectoryInfoWrap(repo);
