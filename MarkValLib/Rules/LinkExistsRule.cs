@@ -47,7 +47,9 @@ namespace MarkValLib.Rules
                 return CheckAnchor(url, link, document, file, context);
             }
 
+            //TODO: add validation for these
             if (url.StartsWith("mailto:")) return null;
+            if (url.StartsWith("onenote:")) return null;
 
             if (Uri.TryCreate(url, UriKind.Absolute, out Uri uri))
             {
