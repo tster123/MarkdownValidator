@@ -7,6 +7,6 @@ namespace MarkValLib
     public interface IRule
     {
 
-        IEnumerable<MarkdownProblem> GetProblems(MarkdownObject obj, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo);
+        IEnumerable<MarkdownProblem> GetProblems(MarkdownObject obj, MarkdownDocument document, IFileInfoWrap file, ValidationContext context);
     }
 }

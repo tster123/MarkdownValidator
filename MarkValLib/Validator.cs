@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using Markdig.Parsers;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using SystemWrapper.IO;
@@ -9,7 +8,7 @@ namespace MarkValLib
 {
     public class IOErrorRule : IRule
     {
-        public IEnumerable<MarkdownProblem> GetProblems(MarkdownObject obj, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        public IEnumerable<MarkdownProblem> GetProblems(MarkdownObject obj, MarkdownDocument document, IFileInfoWrap file, ValidationContext context)
         {
             return Array.Empty<MarkdownProblem>();
         }
@@ -17,41 +16,34 @@ namespace MarkValLib
 
     public class Validator
     {
-        private readonly IDirectoryInfoWrap Repository;
-        private readonly IEnumerable<IRule> Rules;
+        private readonly ValidationContext context;
+
+        private readonly IEnumerable<IRule> rules;
 
         public Validator(IDirectoryInfoWrap directory, IEnumerable<IRule> rules)
         {
-            Repository = directory;
-            Rules = rules;
+            context = new ValidationContext(directory);
+            this.rules = rules;
         }
 
         public IEnumerable<MarkdownProblem> CheckDocument(IFileInfoWrap file)
         {
-            string text;
-
-            MarkdownProblem toRet = null;
             try
             {
-                var stream = file.OpenText();
-                using (stream.StreamReaderInstance)
-                {
-                    text = stream.ReadToEnd();
-                }
+                MarkdownDocument document = context.GetDocument(file);
+                return TraverseDocument(document, file);
             }
             catch (Exception e)
             {
-                text = "foo";
-                toRet = new MarkdownProblem(new IOErrorRule(), null, file, "Unable to open file: " + e.Message);
+                return new[]
+                {
+                    new MarkdownProblem(new IOErrorRule(), null, file, "Unable to open file: " + e.Message)
+                };
             }
+        }
 
-            if (toRet != null)
-            {
-                yield return toRet;
-                yield break;
-            }
-
-            MarkdownDocument document = MarkdownParser.Parse(text);
+        private IEnumerable<MarkdownProblem> TraverseDocument(MarkdownDocument document, IFileInfoWrap file)
+        {
             Queue<ContainerBlock> toProcess = new Queue<ContainerBlock>();
             toProcess.Enqueue(document);
             while (toProcess.Count > 0)
@@ -59,9 +51,9 @@ namespace MarkValLib
                 ContainerBlock container = toProcess.Dequeue();
                 foreach (Block block in container)
                 {
-                    foreach (IRule rule in Rules)
+                    foreach (IRule rule in rules)
                     {
-                        foreach (var p in rule.GetProblems(block, document, file, Repository)) yield return p;
+                        foreach (var p in rule.GetProblems(block, document, file, context)) yield return p;
                     }
 
                     if (block is ContainerBlock newContainer) toProcess.Enqueue(newContainer);
@@ -70,9 +62,9 @@ namespace MarkValLib
                         if (leaf.Inline == null) continue;
                         foreach (Inline inline in leaf.Inline)
                         {
-                            foreach (IRule rule in Rules)
+                            foreach (IRule rule in rules)
                             {
-                                foreach (var p in rule.GetProblems(inline, document, file, Repository)) yield return p;
+                                foreach (var p in rule.GetProblems(inline, document, file, context)) yield return p;
                             }
                         }
                     }

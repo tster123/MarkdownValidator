@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Runtime.InteropServices;
 using System.Threading;
 using HtmlAgilityPack;
 using Markdig;
@@ -15,28 +14,28 @@ namespace MarkValLib.Rules
 {
     public class LinkExistsRule : IRule
     {
-        public IEnumerable<MarkdownProblem> GetProblems(MarkdownObject obj, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        public IEnumerable<MarkdownProblem> GetProblems(MarkdownObject obj, MarkdownDocument document, IFileInfoWrap file, ValidationContext context)
         {
             if (obj is LinkReferenceDefinition reference)
             {
-                MarkdownProblem problem = CheckLinkReference(reference, document, file, repo);
+                MarkdownProblem problem = CheckLinkReference(reference, document, file, context);
                 if (problem != null) yield return problem;
             }
 
             if (obj is LinkInline link)
             {
-                MarkdownProblem problem = CheckLinkInline(link, document, file, repo);
+                MarkdownProblem problem = CheckLinkInline(link, document, file, context);
                 if (problem != null) yield return problem;
             }
         }
 
-        private MarkdownProblem CheckLinkInline(LinkInline link, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        private MarkdownProblem CheckLinkInline(LinkInline link, MarkdownDocument document, IFileInfoWrap file, ValidationContext context)
         {
             string url = link.Url;
-            return GetLinkProblem(url, new LinkInlineWrapper(link), document, file, repo);
+            return GetLinkProblem(url, new LinkInlineWrapper(link), document, file, context);
         }
 
-        private MarkdownProblem GetLinkProblem(string url, ILinkWrapper link, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        private MarkdownProblem GetLinkProblem(string url, ILinkWrapper link, MarkdownDocument document, IFileInfoWrap file, ValidationContext context)
         {
             if (string.IsNullOrEmpty(url))
             {
@@ -64,7 +63,7 @@ namespace MarkValLib.Rules
                 }
             }
 
-            return CheckLocalLink(url, link, file, repo);
+            return CheckLocalLink(url, link, file, context);
         }
 
         private string NormalizeAnchor(string anchor)
@@ -147,10 +146,11 @@ namespace MarkValLib.Rules
             }
         }
 
-        private MarkdownProblem CheckLocalLink(string url, ILinkWrapper link, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        private MarkdownProblem CheckLocalLink(string url, ILinkWrapper link, IFileInfoWrap file, ValidationContext context)
         {
             bool absolute = url[0] == '/';
             if (absolute) url = url.Substring(1);
+            IDirectoryInfoWrap repo = context.Directory;
             IDirectoryInfoWrap workDir = absolute ? repo : file.Directory;
             string[] parts = url.Split('/');
             string workDirPath = absolute ? "/" : "";
@@ -190,18 +190,34 @@ namespace MarkValLib.Rules
             }
 
             string filename = WebUtility.UrlDecode(parts.Last());
+            string[] filenameParts = filename.Split('#');
+            if (filenameParts.Length > 2)
+                return new MarkdownProblem(this, link.MarkdownObject, file, $"Ill-formed anchor specified in [{url}]");
+            filename = filenameParts[0];
+
             var candidateFile =
                 workDir.GetFiles().SingleOrDefault(f =>
                     WebUtility.UrlDecode(f.Name).ToLowerInvariant() == filename.ToLowerInvariant() ||
                     WebUtility.UrlDecode(f.Name).ToLowerInvariant() == filename.ToLowerInvariant() + ".md");
-            if (candidateFile != null) return null;
+            if (candidateFile == null)
+            {
+                return new MarkdownProblem(this, link.MarkdownObject, file,
+                    $"Cannot find file [{filename}] in [{workDirPath}]");
+            }
 
-            return new MarkdownProblem(this, link.MarkdownObject, file, $"Cannot find file [{filename}] in [{workDirPath}]");
+            if (filenameParts.Length > 1)
+            {
+
+                return CheckAnchor("#" + filenameParts[1], link, null, file);
+            }
+
+            return null;
+
         }
 
-        private MarkdownProblem CheckLinkReference(LinkReferenceDefinition block, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        private MarkdownProblem CheckLinkReference(LinkReferenceDefinition block, MarkdownDocument document, IFileInfoWrap file, ValidationContext context)
         {
-            return GetLinkProblem(block.Url, new LinkReferenceWrapper(block), document, file, repo);
+            return GetLinkProblem(block.Url, new LinkReferenceWrapper(block), document, file, context);
         }
 
         internal interface ILinkWrapper

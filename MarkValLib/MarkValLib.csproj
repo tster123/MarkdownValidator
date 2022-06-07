@@ -67,6 +67,7 @@
     <Compile Include="MarkdownProblem.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Rules\LinkExistsRule.cs" />
+    <Compile Include="ValidationContext.cs" />
     <Compile Include="Validator.cs" />
   </ItemGroup>
   <ItemGroup>

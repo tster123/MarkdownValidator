@@ -13,8 +13,8 @@ namespace MarkValLibTest
     [TestClass]
     public class LinkExistsRuleTest
     {
-        private string repo = @"C:\Repos\SharePoint-Online.wiki";
-        private string drOce = @"C:\Repos\DrOce";
+        private string repo = @"D:\Repos\wiki";
+        private string drOce = @"D:\repos\dr-oce-wiki\DrOce\TSGs";
 
         [TestMethod]
         public void TestBasicLinks()
@@ -33,6 +33,13 @@ namespace MarkValLibTest
         {
             TestSingleFile(drOce, "AutoClumpsFailoverDRAlerts.md");
         }
+        
+        [TestMethod]
+        public void TestForeignAnchors()
+        {
+            TestSingleFile(repo, "6-Writing-Your-First-Recurring-Job.md");
+        }
+
 
         [TestMethod]
         public void TestDecoding()
