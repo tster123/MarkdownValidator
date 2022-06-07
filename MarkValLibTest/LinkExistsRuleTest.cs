@@ -13,69 +13,49 @@ namespace MarkValLibTest
     [TestClass]
     public class LinkExistsRuleTest
     {
-        private string repo = @"D:\Repos\wiki";
+        private string repo = @"C:\Repos\SharePoint-Online.wiki";
+        private string drOce = @"C:\Repos\DrOce";
 
         [TestMethod]
         public void TestBasicLinks()
         {
-            IDirectoryInfoWrap directory = new DirectoryInfoWrap(repo);
-            IFileInfoWrap file = directory.GetFiles("ziyiw-SPIron.md", SearchOption.AllDirectories).Single();
-            LinkExistsRule rule = new LinkExistsRule();
-            Validator v = new Validator(directory, new[] { rule });
-            var problems = v.CheckDocument(file);
-            foreach (var p in problems)
-            {
-                Console.WriteLine(p);
-            }
+            TestSingleFile(repo, "ziyiw-SPIron.md");
         }
 
         [TestMethod]
         public void TestAnchors()
         {
-            IDirectoryInfoWrap directory = new DirectoryInfoWrap(repo);
-            IFileInfoWrap file = directory.GetFiles("PrepSP.md", SearchOption.AllDirectories).Single();
-            LinkExistsRule rule = new LinkExistsRule();
-            Validator v = new Validator(directory, new[] { rule });
-            var problems = v.CheckDocument(file);
-            foreach (var p in problems)
-            {
-                Console.WriteLine(p);
-            }
+            TestSingleFile(repo, "PrepSP.md");
+        }
+
+        [TestMethod]
+        public void TestHtmlAnchors()
+        {
+            TestSingleFile(drOce, "AutoClumpsFailoverDRAlerts.md");
         }
 
         [TestMethod]
         public void TestDecoding()
         {
-            IDirectoryInfoWrap directory = new DirectoryInfoWrap(repo);
-            IFileInfoWrap file = directory.GetFiles("Upgrading-.NET-Runtime-on-SPO-Servers.md", SearchOption.AllDirectories).Single();
-            LinkExistsRule rule = new LinkExistsRule();
-            Validator v = new Validator(directory, new[] { rule });
-            var problems = v.CheckDocument(file);
-            foreach (var p in problems)
-            {
-                Console.WriteLine(p);
-            }
+            TestSingleFile(repo, "Upgrading-.NET-Runtime-on-SPO-Servers.md");
         }
 
         [TestMethod]
         public void TestWebsites()
         {
-            IDirectoryInfoWrap directory = new DirectoryInfoWrap(repo);
-            IFileInfoWrap file = directory.GetFiles("Security-training.md", SearchOption.AllDirectories).Single();
-            LinkExistsRule rule = new LinkExistsRule();
-            Validator v = new Validator(directory, new[] { rule });
-            var problems = v.CheckDocument(file);
-            foreach (var p in problems)
-            {
-                Console.WriteLine(p);
-            }
+            TestSingleFile(repo, "Security-training.md");
         }
 
         [TestMethod]
         public void TestLinkMissingMdExtension()
         {
+            TestSingleFile(repo, "Onboarding.md", SearchOption.TopDirectoryOnly);
+        }
+
+        private void TestSingleFile(string repo, string filename, SearchOption option = SearchOption.AllDirectories)
+        {
             IDirectoryInfoWrap directory = new DirectoryInfoWrap(repo);
-            IFileInfoWrap file = directory.GetFiles("Onboarding.md", SearchOption.TopDirectoryOnly).Single();
+            IFileInfoWrap file = directory.GetFiles(filename, option).Single();
             LinkExistsRule rule = new LinkExistsRule();
             Validator v = new Validator(directory, new[] { rule });
             var problems = v.CheckDocument(file);

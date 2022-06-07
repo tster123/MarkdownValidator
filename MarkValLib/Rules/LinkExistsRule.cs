@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Threading;
+using HtmlAgilityPack;
+using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using SystemWrapper.IO;
@@ -64,11 +67,30 @@ namespace MarkValLib.Rules
             return CheckLocalLink(url, link, file, repo);
         }
 
+        private string NormalizeAnchor(string anchor)
+        {
+            if (string.IsNullOrEmpty(anchor)) return "";
+            if (anchor.StartsWith("#")) anchor = anchor.Substring(1);
+            return anchor.Replace(" ", "-").ToLowerInvariant();
+        }
+
         private MarkdownProblem CheckAnchor(string url, ILinkWrapper link, MarkdownDocument document, IFileInfoWrap file)
         {
             string anchor = url.Substring(1);
             anchor = WebUtility.UrlDecode(anchor);
-            anchor = anchor.Replace("-", " ");
+            anchor = NormalizeAnchor(anchor);
+
+            HtmlDocument html = new HtmlDocument();
+            html.LoadHtml(document.ToHtml());
+            foreach (var node in html.DocumentNode.SelectNodes("//a"))
+            {
+                if (NormalizeAnchor(node.Attributes["name"]?.Value) == anchor)
+                {
+                    return null;
+                }
+            }
+                
+
             //TODO: do I need to do a tree search?
             foreach (Block block in document)
             {
@@ -80,11 +102,12 @@ namespace MarkValLib.Rules
                     {
                         if (i is LiteralInline li)
                         {
-                            headingText += li.Content.Text;
+                            headingText += li.ToString();
                         }
                     }
-                    headingText = headingText.Replace("-", " ");
-                    if (headingText.ToLowerInvariant() == anchor.ToLowerInvariant())
+
+                    headingText = NormalizeAnchor(headingText);
+                    if (headingText == anchor)
                     {
                         return null;
                     }
