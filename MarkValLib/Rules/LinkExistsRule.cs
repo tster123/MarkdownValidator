@@ -44,8 +44,7 @@ namespace MarkValLib.Rules
 
             if (url.StartsWith("#"))
             {
-                // TODO: support anchors in other pages
-                return CheckAnchor(url, link, document, file);
+                return CheckAnchor(url, link, document, file, context);
             }
 
             if (url.StartsWith("mailto:")) return null;
@@ -73,7 +72,12 @@ namespace MarkValLib.Rules
             return anchor.Replace(" ", "-").ToLowerInvariant();
         }
 
-        private MarkdownProblem CheckAnchor(string url, ILinkWrapper link, MarkdownDocument document, IFileInfoWrap file)
+        private MarkdownProblem CheckAnchor(string url,
+            ILinkWrapper link,
+            MarkdownDocument document,
+            IFileInfoWrap file,
+            ValidationContext context,
+            IFileInfoWrap foreignFile = null)
         {
             string anchor = url.Substring(1);
             anchor = WebUtility.UrlDecode(anchor);
@@ -113,7 +117,12 @@ namespace MarkValLib.Rules
                 }
             }
 
-            return new MarkdownProblem(this, link.MarkdownObject, file, $"Cannot find anchor in document [{url}]");
+            string message = $"Cannot find anchor in document [{url}]";
+            if (foreignFile != null)
+            {
+                message = $"Cannot find anchor [{url}] on page [{context.GetRepoPath(foreignFile)}]";
+            }
+            return new MarkdownProblem(this, link.MarkdownObject, file, message);
         }
 
         private static Semaphore sem = new Semaphore(8, 8);
@@ -195,7 +204,7 @@ namespace MarkValLib.Rules
                 return new MarkdownProblem(this, link.MarkdownObject, file, $"Ill-formed anchor specified in [{url}]");
             filename = filenameParts[0];
 
-            var candidateFile =
+            IFileInfoWrap candidateFile =
                 workDir.GetFiles().SingleOrDefault(f =>
                     WebUtility.UrlDecode(f.Name).ToLowerInvariant() == filename.ToLowerInvariant() ||
                     WebUtility.UrlDecode(f.Name).ToLowerInvariant() == filename.ToLowerInvariant() + ".md");
@@ -207,8 +216,8 @@ namespace MarkValLib.Rules
 
             if (filenameParts.Length > 1)
             {
-
-                return CheckAnchor("#" + filenameParts[1], link, null, file);
+                string fAnchor = "#" + filenameParts[1];
+                return CheckAnchor(fAnchor, link, context.GetDocument(candidateFile), file, context, candidateFile);
             }
 
             return null;

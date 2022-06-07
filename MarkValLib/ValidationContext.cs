@@ -35,5 +35,10 @@ namespace MarkValLib
 
             return parsedMarkdowns[file.FullName];
         }
+
+        public string GetRepoPath(IFileInfoWrap file)
+        {
+            return file.FullName.Substring(Directory.FullName.Length);
+        }
     }
 }
