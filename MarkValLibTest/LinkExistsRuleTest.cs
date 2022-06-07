@@ -32,6 +32,7 @@ namespace MarkValLibTest
         public void TestHtmlAnchors()
         {
             TestSingleFile(drOce, "AutoClumpsFailoverDRAlerts.md");
+            TestSingleFile(drOce, "FailoverRollback.md");
         }
         
         [TestMethod]

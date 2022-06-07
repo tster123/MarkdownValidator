@@ -87,12 +87,19 @@ namespace MarkValLib.Rules
             html.LoadHtml(document.ToHtml());
             foreach (var node in html.DocumentNode.SelectNodes("//a"))
             {
-                if (NormalizeAnchor(node.Attributes["name"]?.Value) == anchor)
+                if (NormalizeAnchor(node.Name) == anchor)
                 {
                     return null;
                 }
             }
-                
+            foreach (var node in html.DocumentNode.Descendants())
+            {
+                if (NormalizeAnchor(node.Id) == anchor)
+                {
+                    return null;
+                }
+            }
+
 
             //TODO: do I need to do a tree search?
             foreach (Block block in document)
@@ -125,13 +132,14 @@ namespace MarkValLib.Rules
             return new MarkdownProblem(this, link.MarkdownObject, file, message);
         }
 
-        private static Semaphore sem = new Semaphore(30, 30);
+        private static int MAX_CONNECTIONS = 50;
+        private static Semaphore sem = new Semaphore(MAX_CONNECTIONS, MAX_CONNECTIONS);
         private static HttpClient client;
 
         static LinkExistsRule()
         {
             HttpClientHandler handler = new HttpClientHandler();
-            handler.MaxConnectionsPerServer = 30;
+            handler.MaxConnectionsPerServer = MAX_CONNECTIONS;
             client = new HttpClient(handler);
             client.Timeout = TimeSpan.FromSeconds(20);
         }
