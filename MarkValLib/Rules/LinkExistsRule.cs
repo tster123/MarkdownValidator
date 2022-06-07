@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Security.Policy;
+using System.Threading;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using SystemWrapper.IO;
@@ -15,9 +14,9 @@ namespace MarkValLib.Rules
     {
         public IEnumerable<MarkdownProblem> GetProblems(MarkdownObject obj, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
         {
-            if (obj is LinkReferenceDefinition)
+            if (obj is LinkReferenceDefinition reference)
             {
-                MarkdownProblem problem = CheckLink((LinkReferenceDefinition)obj, document, file, repo);
+                MarkdownProblem problem = CheckLinkReference(reference, document, file, repo);
                 if (problem != null) yield return problem;
             }
 
@@ -31,33 +30,29 @@ namespace MarkValLib.Rules
         private MarkdownProblem CheckLinkInline(LinkInline link, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
         {
             string url = link.Url;
-            if (url == null) return new MarkdownProblem(this, link, file, "null URL");
-            if (Uri.IsWellFormedUriString(url, UriKind.Absolute))
-            {
-                Uri uri = new Uri(url);
-                return null;
-            }
-            return GetLinkProblem(url, link, document, file, repo);
+            return GetLinkProblem(url, new LinkInlineWrapper(link), document, file, repo);
         }
 
-        private MarkdownProblem GetLinkProblem(string url, LinkInline link, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        private MarkdownProblem GetLinkProblem(string url, ILinkWrapper link, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
         {
-            if (url == "")
+            if (string.IsNullOrEmpty(url))
             {
-                return new MarkdownProblem(this, link, file, $"Empty link on [{link.Label}]");
+                return new MarkdownProblem(this, link.MarkdownObject, file, $"Empty link on [{link.Label}]");
             }
 
             if (url.StartsWith("#"))
             {
                 // TODO: support anchors in other pages
-                return CheckAnchor(url, link, document, file, repo);
+                return CheckAnchor(url, link, document, file);
             }
+
+            if (url.StartsWith("mailto:")) return null;
 
             if (Uri.TryCreate(url, UriKind.Absolute, out Uri uri))
             {
                 if (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
                 {
-                    return CheckHttpLink(uri, link, file, repo);
+                    return CheckHttpLink(uri, link, file);
                 }
 
                 if (uri.Scheme == Uri.UriSchemeMailto)
@@ -69,7 +64,7 @@ namespace MarkValLib.Rules
             return CheckLocalLink(url, link, file, repo);
         }
 
-        private MarkdownProblem CheckAnchor(string url, LinkInline link, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        private MarkdownProblem CheckAnchor(string url, ILinkWrapper link, MarkdownDocument document, IFileInfoWrap file)
         {
             string anchor = url.Substring(1);
             anchor = WebUtility.UrlDecode(anchor);
@@ -85,7 +80,7 @@ namespace MarkValLib.Rules
                     {
                         if (i is LiteralInline li)
                         {
-                            headingText += i.ToString();
+                            headingText += li.Content.Text;
                         }
                     }
                     headingText = headingText.Replace("-", " ");
@@ -96,29 +91,40 @@ namespace MarkValLib.Rules
                 }
             }
 
-            return new MarkdownProblem(this, link, file, $"Cannot find anchor in document [{url}]");
+            return new MarkdownProblem(this, link.MarkdownObject, file, $"Cannot find anchor in document [{url}]");
         }
 
-        private MarkdownProblem CheckHttpLink(Uri url, LinkInline link, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        private static Semaphore sem = new Semaphore(8, 8);
+        private MarkdownProblem CheckHttpLink(Uri url, ILinkWrapper link, IFileInfoWrap file)
         {
-            HttpClient client = new HttpClient();
-            client.Timeout = TimeSpan.FromSeconds(5);
+            sem.WaitOne();
             try
             {
-                HttpResponseMessage response = client.GetAsync(url).Result;
-                if (response.StatusCode == HttpStatusCode.NotFound)
+                HttpClient client = new HttpClient();
+                client.Timeout = TimeSpan.FromSeconds(20);
+                try
                 {
-                    return new MarkdownProblem(this, link, file, $"Got 404 from [{url}]");
+                    HttpResponseMessage response = client.GetAsync(url).Result;
+                    if (response.StatusCode == HttpStatusCode.NotFound)
+                    {
+                        return new MarkdownProblem(this, link.MarkdownObject, file, $"Got 404 from [{url}]");
+                    }
                 }
+                catch (Exception e)
+                {
+                    while (e.InnerException != null) e = e.InnerException;
+                    return new MarkdownProblem(this, link.MarkdownObject, file, $"Error getting [{url}]: {e.Message}");
+                }
+
+                return null;
             }
-            catch (Exception e)
+            finally
             {
-                return new MarkdownProblem(this, link, file, $"Error getting [{url}]: {e.Message}");
+                sem.Release();
             }
-            return null;
         }
 
-        private MarkdownProblem CheckLocalLink(string url, LinkInline link, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        private MarkdownProblem CheckLocalLink(string url, ILinkWrapper link, IFileInfoWrap file, IDirectoryInfoWrap repo)
         {
             bool absolute = url[0] == '/';
             if (absolute) url = url.Substring(1);
@@ -137,7 +143,7 @@ namespace MarkValLib.Rules
                 {
                     if (workDir.FullName.ToLowerInvariant() == repo.FullName.ToLowerInvariant())
                     {
-                        return new MarkdownProblem(this, link, file,
+                        return new MarkdownProblem(this, link.MarkdownObject, file,
                             $"link for [{link.Label}] went above markdown base directory");
                     }
 
@@ -149,7 +155,7 @@ namespace MarkValLib.Rules
                         .SingleOrDefault(d => WebUtility.UrlDecode(d.Name).ToLowerInvariant() == part.ToLowerInvariant());
                     if (candidate == null)
                     {
-                        return new MarkdownProblem(this, link, file,
+                        return new MarkdownProblem(this, link.MarkdownObject, file,
                             $"Cannot find dir [{part}] in [{workDirPath}]");
                     }
 
@@ -163,22 +169,51 @@ namespace MarkValLib.Rules
             string filename = WebUtility.UrlDecode(parts.Last());
             var candidateFile =
                 workDir.GetFiles().SingleOrDefault(f =>
-                    WebUtility.UrlDecode(f.Name).ToLowerInvariant() == filename.ToLowerInvariant());
+                    WebUtility.UrlDecode(f.Name).ToLowerInvariant() == filename.ToLowerInvariant() ||
+                    WebUtility.UrlDecode(f.Name).ToLowerInvariant() == filename.ToLowerInvariant() + ".md");
             if (candidateFile != null) return null;
 
-            var candidateDir = workDir.GetDirectories()
-                .SingleOrDefault(d => d.Name.ToLowerInvariant() == filename.ToLowerInvariant());
-            if (candidateDir != null)
-            {
-                return null;
-            }
-
-            return new MarkdownProblem(this, link, file, $"Cannot find file [{filename}] in [{workDirPath}]");
+            return new MarkdownProblem(this, link.MarkdownObject, file, $"Cannot find file [{filename}] in [{workDirPath}]");
         }
 
-        private MarkdownProblem CheckLink(LinkReferenceDefinition block, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
+        private MarkdownProblem CheckLinkReference(LinkReferenceDefinition block, MarkdownDocument document, IFileInfoWrap file, IDirectoryInfoWrap repo)
         {
-            return new MarkdownProblem(this, block, file, "Don't understand LinkReferenceDefinition");
+            return GetLinkProblem(block.Url, new LinkReferenceWrapper(block), document, file, repo);
+        }
+
+        internal interface ILinkWrapper
+        {
+            string Url { get; }
+            string Label { get; }
+            MarkdownObject MarkdownObject { get; }
+        }
+
+        internal class LinkInlineWrapper : ILinkWrapper
+        {
+            private readonly LinkInline link;
+
+            public LinkInlineWrapper(LinkInline link)
+            {
+                this.link = link;
+            }
+
+            public string Url => link.Url;
+            public string Label => link.Label;
+            public MarkdownObject MarkdownObject => link;
+        }
+
+        internal class LinkReferenceWrapper : ILinkWrapper
+        {
+            private readonly LinkReferenceDefinition link;
+
+            public LinkReferenceWrapper(LinkReferenceDefinition link)
+            {
+                this.link = link;
+            }
+
+            public string Url => link.Url;
+            public string Label => link.Label;
+            public MarkdownObject MarkdownObject => link;
         }
     }
 }
