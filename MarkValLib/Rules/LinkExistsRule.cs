@@ -125,34 +125,38 @@ namespace MarkValLib.Rules
             return new MarkdownProblem(this, link.MarkdownObject, file, message);
         }
 
-        private static Semaphore sem = new Semaphore(8, 8);
+        private static Semaphore sem = new Semaphore(30, 30);
+        private static HttpClient client;
+
+        static LinkExistsRule()
+        {
+            HttpClientHandler handler = new HttpClientHandler();
+            handler.MaxConnectionsPerServer = 30;
+            client = new HttpClient(handler);
+            client.Timeout = TimeSpan.FromSeconds(20);
+        }
+
         private MarkdownProblem CheckHttpLink(Uri url, ILinkWrapper link, IFileInfoWrap file)
         {
             sem.WaitOne();
             try
             {
-                HttpClient client = new HttpClient();
-                client.Timeout = TimeSpan.FromSeconds(20);
-                try
+                HttpResponseMessage response = client.GetAsync(url).Result;
+                if (response.StatusCode == HttpStatusCode.NotFound)
                 {
-                    HttpResponseMessage response = client.GetAsync(url).Result;
-                    if (response.StatusCode == HttpStatusCode.NotFound)
-                    {
-                        return new MarkdownProblem(this, link.MarkdownObject, file, $"Got 404 from [{url}]");
-                    }
+                    return new MarkdownProblem(this, link.MarkdownObject, file, $"Got 404 from [{url}]");
                 }
-                catch (Exception e)
-                {
-                    while (e.InnerException != null) e = e.InnerException;
-                    return new MarkdownProblem(this, link.MarkdownObject, file, $"Error getting [{url}]: {e.Message}");
-                }
-
-                return null;
+            }
+            catch (Exception e)
+            {
+                while (e.InnerException != null) e = e.InnerException;
+                return new MarkdownProblem(this, link.MarkdownObject, file, $"Error getting [{url}]: {e.Message}");
             }
             finally
             {
                 sem.Release();
             }
+            return null;
         }
 
         private MarkdownProblem CheckLocalLink(string url, ILinkWrapper link, IFileInfoWrap file, ValidationContext context)
