@@ -25,7 +25,8 @@ namespace MarkValLibTest
         [TestMethod]
         public void TestAnchors()
         {
-            TestSingleFile(repo, "PrepSP.md");
+            //TestSingleFile(repo, "PrepSP.md");
+            TestSingleFile(repo, "Build-Accessor.md");
         }
 
         [TestMethod]
