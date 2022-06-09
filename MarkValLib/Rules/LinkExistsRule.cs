@@ -89,7 +89,7 @@ namespace MarkValLib.Rules
             html.LoadHtml(document.ToHtml());
             foreach (var node in html.DocumentNode.SelectNodes("//a"))
             {
-                if (NormalizeAnchor(node.Name) == anchor)
+                if (NormalizeAnchor(node.Attributes["name"]?.Value) == anchor)
                 {
                     return null;
                 }

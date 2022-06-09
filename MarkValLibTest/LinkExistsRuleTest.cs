@@ -14,7 +14,7 @@ namespace MarkValLibTest
     public class LinkExistsRuleTest
     {
         private string repo = @"D:\Repos\wiki";
-        private string drOce = @"D:\repos\dr-oce-wiki\DrOce\TSGs";
+        private string drOce = @"D:\repos\DrOce\DrOce\TSGs";
 
         [TestMethod]
         public void TestBasicLinks()
@@ -32,6 +32,7 @@ namespace MarkValLibTest
         [TestMethod]
         public void TestHtmlAnchors()
         {
+            TestSingleFile(drOce, "ClumpOverseerAberrationAlerts.md");
             TestSingleFile(drOce, "AutoClumpsFailoverDRAlerts.md");
             TestSingleFile(drOce, "FailoverRollback.md");
         }
@@ -100,7 +101,7 @@ namespace MarkValLibTest
         [TestMethod]
         public void GetAllBroken2()
         {
-            IDirectoryInfoWrap directory = new DirectoryInfoWrap(@"D:\repos\dr-oce-wiki");
+            IDirectoryInfoWrap directory = new DirectoryInfoWrap(drOce);
             object lockObj = new object();
             Parallel.ForEach(directory.GetFiles("*.md", SearchOption.AllDirectories), file =>
             {
